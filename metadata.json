@@ -1,0 +1,7 @@
+{
+  "name": "BBM Flow: Road Traffic Control",
+  "description": "A futuristic, exception-driven surveillance platform for fuel distribution monitoring, featuring real-time situational awareness, DMS integration, and automated incident management.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
