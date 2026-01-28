@@ -18,7 +18,10 @@ import {
   Activity, 
   Zap, 
   Camera,
-  History
+  History,
+  Thermometer,
+  Radio,
+  HardDrive
 } from 'lucide-react';
 
 interface Props {
@@ -60,7 +63,7 @@ const TechnicianTicketing: React.FC<Props> = ({ tickets, onUpdateTicket }) => {
         <div className="flex justify-between items-end">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="bg-black p-2 rounded-xl text-white">
+              <div className="bg-black p-2 rounded-xl text-white shadow-lg">
                 <Wrench size={24} />
               </div>
               <h2 className="text-3xl font-bold tracking-tight text-zinc-900">Technician Portal</h2>
@@ -72,7 +75,7 @@ const TechnicianTicketing: React.FC<Props> = ({ tickets, onUpdateTicket }) => {
               <button
                 key={s}
                 onClick={() => setFilter(s)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filter === s ? 'bg-black text-white' : 'text-gray-400 hover:text-black hover:bg-gray-50'}`}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tight transition-all ${filter === s ? 'bg-black text-white shadow-md' : 'text-gray-400 hover:text-black hover:bg-gray-50'}`}
               >
                 {s.replace('_', ' ')}
               </button>
@@ -81,203 +84,186 @@ const TechnicianTicketing: React.FC<Props> = ({ tickets, onUpdateTicket }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 space-y-6">
             {filteredTickets.length > 0 ? filteredTickets.map((ticket) => (
-              <div key={ticket.id} className={`bg-white rounded-[32px] border p-6 shadow-sm hover:shadow-md transition-all group ${activeLogTicketId === ticket.id ? 'border-black ring-1 ring-black/5' : 'border-gray-100'}`}>
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl border ${getStatusStyle(ticket.status)}`}>
-                      {ticket.status === TicketStatus.RESOLVED ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
+              <div key={ticket.id} className={`bg-white rounded-[40px] border p-8 shadow-sm hover:shadow-xl transition-all group ${activeLogTicketId === ticket.id ? 'border-indigo-600 ring-4 ring-indigo-50' : 'border-gray-100'}`}>
+                <div className="flex items-start justify-between mb-8">
+                  <div className="flex items-center gap-5">
+                    <div className={`p-4 rounded-2xl border ${getStatusStyle(ticket.status)} shadow-sm`}>
+                      {ticket.status === TicketStatus.RESOLVED ? <CheckCircle2 size={28} /> : <AlertCircle size={28} />}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{ticket.id}</span>
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${getStatusStyle(ticket.status)}`}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{ticket.id}</span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${getStatusStyle(ticket.status)}`}>
                           {ticket.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <h3 className="text-lg font-bold text-gray-900 mt-1">{ticket.issue}</h3>
+                      <h3 className="text-xl font-black text-gray-900 mt-1.5">{ticket.issue}</h3>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 justify-end">
-                      <Clock size={12} /> {ticket.timestamp}
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2 justify-end">
+                      <Clock size={14} /> {ticket.timestamp}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-6 py-6 border-y border-gray-50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 border border-gray-100">
-                      <Truck size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Unit ID</p>
-                      <p className="text-sm font-bold">{ticket.unitId}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 border border-gray-100">
-                      <User size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Driver</p>
-                      <p className="text-sm font-bold">{ticket.driverName}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 border border-gray-100">
-                      <Wrench size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Assignee</p>
-                      <p className="text-sm font-bold">{ticket.assignedTo}</p>
-                    </div>
-                  </div>
+                <div className="grid grid-cols-3 gap-8 py-8 border-y border-gray-50">
+                  <TicketInfoItem icon={Truck} label="Unit ID" value={ticket.unitId} />
+                  <TicketInfoItem icon={User} label="Driver" value={ticket.driverName} />
+                  <TicketInfoItem icon={Wrench} label="Assignee" value={ticket.assignedTo} />
                 </div>
 
-                <div className="mt-6 flex justify-between items-center">
-                  <div className="flex gap-2">
+                <div className="mt-8 flex justify-between items-center">
+                  <div className="flex gap-3">
                     {ticket.status === TicketStatus.OPEN && (
                       <button 
                         onClick={() => onUpdateTicket(ticket.id, TicketStatus.IN_PROGRESS)}
-                        className="px-4 py-2 bg-black text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-all shadow-md"
+                        className="px-6 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-zinc-800 transition-all shadow-xl shadow-black/10 active:scale-95"
                       >
-                        Start Repair
+                        Start Repair Audit
                       </button>
                     )}
                     {ticket.status === TicketStatus.IN_PROGRESS && (
                       <button 
                         onClick={() => onUpdateTicket(ticket.id, TicketStatus.RESOLVED)}
-                        className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                        className="px-6 py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-95"
                       >
-                        Mark Resolved
+                        Finalize & Close
                       </button>
                     )}
                   </div>
                   <button 
                     onClick={() => setActiveLogTicketId(activeLogTicketId === ticket.id ? null : ticket.id)}
-                    className={`text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 px-4 py-2 rounded-xl border ${
-                      activeLogTicketId === ticket.id ? 'bg-zinc-100 text-black border-zinc-200' : 'text-zinc-400 border-transparent hover:text-black hover:border-zinc-100'
+                    className={`text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 px-6 py-3 rounded-2xl border ${
+                      activeLogTicketId === ticket.id ? 'bg-zinc-950 text-white border-zinc-900 shadow-2xl shadow-black/20' : 'text-zinc-400 border-transparent hover:text-black hover:bg-zinc-50'
                     }`}
                   >
-                    <FileTerminal size={14} /> 
-                    {activeLogTicketId === ticket.id ? 'Close Logs' : 'Full Diagnostic Log'} 
-                    <ChevronRight size={14} className={`transition-transform ${activeLogTicketId === ticket.id ? 'rotate-90' : ''}`} />
+                    <FileTerminal size={16} /> 
+                    Full Diagnostic Log 
+                    <ChevronRight size={16} className={`transition-transform duration-300 ${activeLogTicketId === ticket.id ? 'rotate-90 text-indigo-400' : ''}`} />
                   </button>
                 </div>
               </div>
             )) : (
-              <div className="flex flex-col items-center justify-center py-40 bg-white rounded-[48px] border border-gray-100 text-gray-300">
-                <Wrench size={48} strokeWidth={1} className="mb-4 opacity-20" />
-                <p className="text-sm font-bold uppercase tracking-widest">No maintenance tickets found</p>
+              <div className="flex flex-col items-center justify-center py-48 bg-white rounded-[48px] border border-gray-100 text-gray-300 shadow-inner">
+                <Wrench size={64} strokeWidth={1} className="mb-6 opacity-10" />
+                <p className="text-sm font-black uppercase tracking-[0.3em]">No maintenance tickets detected</p>
+                <p className="text-xs mt-3 italic font-medium">All hardware systems reporting optimal health.</p>
               </div>
             )}
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-              <h3 className="font-bold mb-4 flex items-center gap-2">
-                <Filter size={18} className="text-gray-400" /> Maintenance Health
+            <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+              <h3 className="font-black text-sm uppercase tracking-widest mb-6 flex items-center gap-3">
+                <Activity size={18} className="text-indigo-600" /> Maintenance Health
               </h3>
               <div className="space-y-4">
                 <HealthStat label="Total Tickets" value={tickets.length} />
-                <HealthStat label="Pending Repairs" value={tickets.filter(t => t.status !== TicketStatus.RESOLVED).length} color="text-rose-600" />
-                <HealthStat label="Uptime Efficiency" value="98.2%" color="text-emerald-600" />
+                <HealthStat label="Pending Focus" value={tickets.filter(t => t.status !== TicketStatus.RESOLVED).length} color="text-rose-600" />
+                <HealthStat label="Hardware Uptime" value="98.2%" color="text-emerald-600" />
               </div>
             </div>
 
-            <div className="bg-blue-600 p-8 rounded-[32px] shadow-2xl text-white relative overflow-hidden group">
+            <div className="bg-blue-600 p-10 rounded-[48px] shadow-2xl text-white relative overflow-hidden group">
               <div className="relative z-10">
-                <h3 className="font-black text-xl mb-2">Hardware Integrity</h3>
-                <p className="text-blue-100 text-xs leading-relaxed mb-6">
-                  Automatic ticketing triggered by RTC feedback ensures communication failure downtime is minimized.
+                <h3 className="font-black text-2xl mb-3 tracking-tighter">Hardware Guard</h3>
+                <p className="text-blue-100 text-xs leading-relaxed mb-8 font-medium">
+                  Automatic ticketing is driven by RTC behavior audits. Low communication quality triggers immediate field maintenance orders.
                 </p>
-                <button className="w-full py-3 bg-white text-blue-700 text-xs font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-black/10 hover:bg-blue-50 transition-all">
-                  Technician SOP-44
+                <button className="w-full py-4 bg-white text-blue-700 text-xs font-black uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-black/10 hover:bg-blue-50 transition-all hover:scale-[1.02] active:scale-95">
+                  View Tech Manual <Zap size={14} />
                 </button>
               </div>
-              <div className="absolute -bottom-10 -right-10 text-white/5 group-hover:scale-110 transition-transform duration-700">
-                <Wrench size={200} />
+              <div className="absolute -bottom-16 -right-16 text-white/5 group-hover:scale-110 transition-transform duration-1000">
+                <Radio size={280} />
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* RIGHT DRAWER: FULL DIAGNOSTIC LOG */}
+      {/* RIGHT DRAWER: FULL DIAGNOSTIC LOG (TELEMETRY DEEP DIVE) */}
       {activeTicket && (
-        <div className="w-[480px] bg-zinc-950 text-white h-[calc(100vh-120px)] rounded-[40px] shadow-2xl flex flex-col border border-white/10 animate-in slide-in-from-right-8 duration-500 overflow-hidden sticky top-0">
-           <div className="p-8 border-b border-white/5 bg-zinc-900/50">
-              <div className="flex justify-between items-start mb-6">
-                 <div>
-                    <div className="flex items-center gap-2 mb-1">
-                       <FileTerminal size={16} className="text-indigo-400" />
-                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">System Telemetry Log</span>
+        <div className="w-[520px] bg-zinc-950 text-white h-[calc(100vh-120px)] rounded-[48px] shadow-2xl flex flex-col border border-white/10 animate-in slide-in-from-right-12 duration-700 ease-out overflow-hidden sticky top-0 z-50">
+           <div className="p-10 border-b border-white/5 bg-gradient-to-br from-zinc-900 to-zinc-950">
+              <div className="flex justify-between items-start mb-8">
+                 <div className="space-y-1">
+                    <div className="flex items-center gap-2 mb-2">
+                       <Radio size={16} className="text-indigo-400 animate-pulse" />
+                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Live Telemetry Stream</span>
                     </div>
-                    <h3 className="text-xl font-black">{activeTicket.id} Diagnostic</h3>
+                    <h3 className="text-2xl font-black tracking-tight">{activeTicket.id} Diagnostic</h3>
+                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest italic mt-1">Terminal ID: TX-AUDIT-449</p>
                  </div>
                  <button 
                   onClick={() => setActiveLogTicketId(null)}
-                  className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-zinc-400 transition-colors"
+                  className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-zinc-400 transition-all hover:scale-110 active:scale-90"
                  >
-                    <X size={20} />
+                    <X size={24} />
                  </button>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Hardware ID</p>
-                    <p className="text-xs font-mono font-bold">NODE-TX-2241</p>
+                 <div className="bg-white/5 p-5 rounded-3xl border border-white/5 shadow-inner">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Module ID</p>
+                    <p className="text-sm font-mono font-black text-indigo-400">NODE-TX-2241</p>
                  </div>
-                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Firmware Rev.</p>
-                    <p className="text-xs font-mono font-bold text-indigo-400">v4.2.0-PRO-BETA</p>
+                 <div className="bg-white/5 p-5 rounded-3xl border border-white/5 shadow-inner">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Firmware Status</p>
+                    <div className="flex items-center gap-2">
+                       <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                       <p className="text-sm font-mono font-black">v4.2.0 Stable</p>
+                    </div>
                  </div>
               </div>
            </div>
 
-           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
+           <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-10">
               <section>
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-4 flex items-center gap-2">
-                    <Zap size={12} className="text-amber-400" /> Critical Health Check
+                 <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-6 flex items-center gap-3">
+                    <Activity size={14} className="text-indigo-500" /> Sensor Health Matrix
                  </h4>
-                 <div className="grid grid-cols-2 gap-3">
-                    <HealthCheckItem icon={Cpu} label="System Processor" status="NOMINAL" />
-                    <HealthCheckItem icon={Wifi} label="LTE Connectivity" status="ERROR" isError />
-                    <HealthCheckItem icon={Camera} label="DMS Sensor" status="WARN" isWarn />
-                    <HealthCheckItem icon={Activity} label="Audio Feed" status="NOMINAL" />
+                 <div className="grid grid-cols-2 gap-4">
+                    <HealthCheckItem icon={Cpu} label="System Core" status="NOMINAL" />
+                    <HealthCheckItem icon={Radio} label="LTE Uplink" status="ERROR" isError />
+                    <HealthCheckItem icon={Camera} label="DMS Optic" status="WARN" isWarn />
+                    <HealthCheckItem icon={Thermometer} label="Thermal" status="NOMINAL" />
+                    <HealthCheckItem icon={Wifi} label="WLAN Mesh" status="IDLE" />
+                    <HealthCheckItem icon={HardDrive} label="Buffer State" status="CLEARED" />
                  </div>
               </section>
 
               <section>
-                 <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
-                       <History size={12} className="text-indigo-400" /> Raw Telemetry Events
+                 <div className="flex items-center justify-between mb-6">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 flex items-center gap-3">
+                       <FileTerminal size={14} className="text-indigo-400" /> Raw Telemetry Events
                     </h4>
-                    <span className="text-[9px] font-bold text-zinc-600 uppercase">Live Feed</span>
+                    <span className="text-[9px] font-black text-zinc-700 uppercase tracking-widest animate-pulse">Live Feed</span>
                  </div>
-                 <div className="bg-black rounded-2xl border border-white/5 overflow-hidden">
+                 <div className="bg-black/40 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
                     <table className="w-full text-left text-[11px] font-mono">
                        <thead className="bg-white/5">
                           <tr className="text-zinc-500 border-b border-white/5">
-                             <th className="px-4 py-2 font-black uppercase tracking-widest">TS</th>
-                             <th className="px-4 py-2 font-black uppercase tracking-widest">MOD</th>
-                             <th className="px-4 py-2 font-black uppercase tracking-widest">LOG</th>
+                             <th className="px-6 py-4 font-black uppercase tracking-widest">TS</th>
+                             <th className="px-6 py-4 font-black uppercase tracking-widest">MOD</th>
+                             <th className="px-6 py-4 font-black uppercase tracking-widest">EVENT LOG</th>
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-white/5">
                           {mockDiagnosticLogs.map((log, i) => (
-                             <tr key={i} className="hover:bg-white/5 transition-colors">
-                                <td className="px-4 py-3 text-zinc-500">{log.time}</td>
-                                <td className="px-4 py-3">
-                                   <span className={`font-black ${
-                                      log.level === 'ERROR' ? 'text-rose-500' :
-                                      log.level === 'CRITICAL' ? 'text-rose-500' :
-                                      log.level === 'WARN' ? 'text-amber-500' : 'text-emerald-500'
+                             <tr key={i} className="hover:bg-white/5 transition-all group">
+                                <td className="px-6 py-4 text-zinc-600 group-hover:text-zinc-400">{log.time}</td>
+                                <td className="px-6 py-4">
+                                   <span className={`font-black px-2 py-0.5 rounded-lg bg-black border ${
+                                      log.level === 'ERROR' ? 'text-rose-500 border-rose-500/20' :
+                                      log.level === 'CRITICAL' ? 'text-rose-600 border-rose-600/20' :
+                                      log.level === 'WARN' ? 'text-amber-500 border-amber-500/20' : 'text-emerald-500 border-emerald-500/20'
                                    }`}>{log.module}</span>
                                 </td>
-                                <td className="px-4 py-3 text-zinc-300 leading-relaxed">{log.msg}</td>
+                                <td className="px-6 py-4 text-zinc-400 leading-relaxed group-hover:text-zinc-200">{log.msg}</td>
                              </tr>
                           ))}
                        </tbody>
@@ -285,15 +271,15 @@ const TechnicianTicketing: React.FC<Props> = ({ tickets, onUpdateTicket }) => {
                  </div>
               </section>
 
-              <div className="p-6 bg-indigo-600 rounded-3xl shadow-xl shadow-indigo-900/40">
-                 <h5 className="text-sm font-black mb-2 flex items-center gap-2">
-                    <Wrench size={14} /> Technician Protocol
+              <div className="p-8 bg-indigo-600 rounded-[32px] shadow-2xl shadow-indigo-950/50 border border-indigo-400/30">
+                 <h5 className="text-sm font-black mb-3 flex items-center gap-3">
+                    <Wrench size={16} /> Technical Intervention Protocol
                  </h5>
-                 <p className="text-xs text-indigo-100 leading-relaxed mb-4">
-                    Unit {activeTicket.unitId} is reporting severe GPS/LTE desynchronization. Field replacement of 5G antenna module is recommended.
+                 <p className="text-xs text-indigo-100 leading-relaxed mb-6 font-medium">
+                    Unit {activeTicket.unitId} cellular handshake failures indicate antenna polarization loss. Manual calibration or hardware replacement of the primary comms node is mandatory.
                  </p>
-                 <button className="w-full py-2 bg-white text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all">
-                    Generate Repair Order
+                 <button className="w-full py-3.5 bg-white text-indigo-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all hover:scale-[1.02] active:scale-95 shadow-lg">
+                    Generate Field Service Order
                  </button>
               </div>
            </div>
@@ -303,26 +289,44 @@ const TechnicianTicketing: React.FC<Props> = ({ tickets, onUpdateTicket }) => {
   );
 };
 
+const TicketInfoItem = ({ icon: Icon, label, value }: any) => (
+  <div className="flex items-center gap-4 group">
+    <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 border border-gray-100 group-hover:bg-zinc-900 group-hover:text-white transition-all duration-300 shadow-sm">
+      <Icon size={24} />
+    </div>
+    <div>
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">{label}</p>
+      <p className="text-base font-black text-zinc-900">{value}</p>
+    </div>
+  </div>
+);
+
 const HealthCheckItem = ({ icon: Icon, label, status, isError, isWarn }: any) => (
-  <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col justify-between h-24">
+  <div className="p-5 rounded-3xl bg-white/5 border border-white/5 flex flex-col justify-between h-28 hover:bg-white/10 transition-all group">
      <div className="flex justify-between items-start">
-        <Icon size={16} className={isError ? 'text-rose-500' : isWarn ? 'text-amber-500' : 'text-emerald-500'} />
-        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${
-           isError ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
-           isWarn ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
-           'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+        <div className={`p-2 rounded-xl border transition-all ${
+           isError ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : 
+           isWarn ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 
+           'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
+        }`}>
+          <Icon size={18} />
+        </div>
+        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-lg uppercase border tracking-widest ${
+           isError ? 'bg-rose-500/20 border-rose-500/30 text-rose-500' :
+           isWarn ? 'bg-amber-500/20 border-amber-500/30 text-amber-500' :
+           'bg-emerald-500/20 border-emerald-500/30 text-emerald-500'
         }`}>
            {status}
         </span>
      </div>
-     <p className="text-[10px] font-bold text-zinc-400 mt-2">{label}</p>
+     <p className="text-[10px] font-black text-zinc-500 group-hover:text-zinc-300 transition-colors uppercase tracking-widest">{label}</p>
   </div>
 );
 
 const HealthStat = ({ label, value, color = "text-gray-900" }: any) => (
-  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-    <p className={`text-xl font-black ${color}`}>{value}</p>
+  <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex items-center justify-between">
+    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{label}</p>
+    <p className={`text-2xl font-black tracking-tight ${color}`}>{value}</p>
   </div>
 );
 

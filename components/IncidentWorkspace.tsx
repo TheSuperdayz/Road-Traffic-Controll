@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Alert, AlertSeverity, Incident, DriverBehaviorState, Unit, DEFAULT_CATEGORIES, AlertCategory } from '../types';
+import { Alert, AlertSeverity, Incident, DriverBehaviorState, Unit, DEFAULT_CATEGORIES, AlertCategory, IncidentOutcome } from '../types';
 import { 
   ShieldAlert, 
   Clock, 
@@ -48,7 +48,10 @@ import {
   CheckCircle,
   BrainCircuit,
   Wand2,
-  Target
+  Target,
+  BarChart3,
+  Dna,
+  Binary
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { useNavigate } from 'react-router-dom';
@@ -97,12 +100,14 @@ interface Props {
   onUpdateStatus: (id: string, status: Incident['status']) => void;
   onUpdateCategory?: (id: string, category: AlertCategory) => void;
   onAddEvent: (id: string, event: string) => void;
+  onSetOutcome: (id: string, outcome: IncidentOutcome) => void;
 }
 
-const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incidents, onUpdateStatus, onUpdateCategory, onAddEvent }) => {
+const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incidents, onUpdateStatus, onUpdateCategory, onAddEvent, onSetOutcome }) => {
   const [currentTab, setCurrentTab] = useState<'active' | 'archived'>('active');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>(incidents[0]?.id || '');
+  const [isSelectingOutcome, setIsSelectingOutcome] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<{ [key: string]: string }>({});
   const [loadingAi, setLoadingAi] = useState(false);
   const [loadingTriage, setLoadingTriage] = useState(false);
@@ -111,14 +116,10 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
   const [showFeedback, setShowFeedback] = useState(false);
   const navigate = useNavigate();
 
-  // Track which incidents have "seen" timestamps initialized to avoid infinite loops
   const initializedIncidents = useRef<Set<string>>(new Set());
-  // Track which incidents were already reassigned during this session to prevent duplicate logs
   const reassignedIncidents = useRef<Set<string>>(new Set());
-  // Track auto-triage attempts to avoid repeated calls
   const triageAttempts = useRef<Set<string>>(new Set());
 
-  // Proactive Triage: Automatically trigger when incident with no category is selected
   useEffect(() => {
     const inc = incidents.find(i => i.id === selectedIncidentId);
     if (inc && !inc.category && !triageSuggestion[inc.id] && !loadingTriage && !triageAttempts.current.has(inc.id)) {
@@ -126,7 +127,6 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
     }
   }, [selectedIncidentId, incidents]);
 
-  // Initialization: Ensure "Visible" incidents have their timer started
   useEffect(() => {
     incidents.forEach(inc => {
       if (inc.status === 'OPEN' && !initializedIncidents.current.has(inc.id)) {
@@ -138,7 +138,6 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
     });
   }, [incidents, onAddEvent]);
 
-  // Reassignment Monitoring: Runs every second to check for timeouts
   useEffect(() => {
     const timer = setInterval(() => {
       const currentTime = Date.now();
@@ -149,7 +148,6 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
           const timeElapsed = currentTime - inc.lastActivityTime;
           if (timeElapsed >= REASSIGNMENT_THRESHOLD_MS && !reassignedIncidents.current.has(inc.id)) {
             reassignedIncidents.current.add(inc.id);
-            // Re-route case
             onUpdateStatus(inc.id, 'ESCALATED');
             onAddEvent(inc.id, 'System Alert: SLA BREACH - 5m timeout reached. Incident reassigned to Lead Supervisor Terminal.');
           }
@@ -162,9 +160,11 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
   const filteredIncidents = useMemo(() => {
     return incidents.filter(inc => {
       if (currentTab === 'active') {
-        return inc.status === 'OPEN';
+        // Active includes OPEN, ESCALATED, and HSSE_ESCALATED
+        return inc.status !== 'CLOSED';
       } else {
-        return inc.status !== 'OPEN';
+        // Archived specifically means CLOSED
+        return inc.status === 'CLOSED';
       }
     });
   }, [incidents, currentTab]);
@@ -180,9 +180,15 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
     }
   }, [currentTab, filteredIncidents]);
 
-  const handleResolve = (id: string) => {
-    onUpdateStatus(id, 'CLOSED');
-    onAddEvent(id, 'Operator: Case manually resolved and moved to archive');
+  const handleBeginResolve = () => {
+    setIsSelectingOutcome(true);
+  };
+
+  const finalizeOutcome = (id: string, outcome: IncidentOutcome) => {
+    onSetOutcome(id, outcome);
+    onAddEvent(id, `Operator: Case finalized with outcome: ${outcome.replace('_', ' ')}.`);
+    onAddEvent(id, 'System: Behavioral telemetry tagged for AI training loop.');
+    setIsSelectingOutcome(false);
   }
 
   const handleReopen = (id: string) => {
@@ -238,7 +244,7 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
       }
     } catch (err) {
       console.error("AI Triage failed", err);
-      triageAttempts.current.delete(targetId); // Allow retry if it failed
+      triageAttempts.current.delete(targetId);
     } finally {
       setLoadingTriage(false);
     }
@@ -272,9 +278,8 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
       onAddEvent(selectedIncident.id, 'Operator: Voice intervention confirmed successful - Audio quality clear');
     }
 
-    onAddEvent(selectedIncident.id, 'System: Post-intervention protocol complete. Moving case to resolved archive.');
-    onUpdateStatus(selectedIncident.id, 'CLOSED');
-    
+    onAddEvent(selectedIncident.id, 'System: Post-intervention protocol complete. Moving case to outcome audit.');
+    setIsSelectingOutcome(true);
     setShowFeedback(false);
   };
 
@@ -349,7 +354,7 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
             </div>
             <h3 className="text-2xl font-black mb-2">Voice Assessment</h3>
             <p className="text-sm text-gray-500 mb-10 leading-relaxed">
-              Distribution unit <span className="text-black font-bold">{selectedIncident?.unitId}</span> call complete. Rate the communication clarity before archival.
+              Distribution unit <span className="text-black font-bold">{selectedIncident?.unitId}</span> call complete. Rate the communication clarity before audit.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <button 
@@ -371,6 +376,74 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
         </div>
       )}
 
+      {/* Outcome Selector Modal */}
+      {isSelectingOutcome && selectedIncident && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-zinc-950/80 backdrop-blur-xl animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-[56px] p-12 shadow-2xl max-w-3xl w-full border border-white/20 relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none">
+                <Binary size={300} />
+             </div>
+             
+             <div className="flex justify-between items-start mb-12 relative z-10">
+                <div className="space-y-1">
+                   <div className="flex items-center gap-2 mb-2">
+                      <BrainCircuit size={18} className="text-indigo-600 animate-pulse" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">AI Feedback Loop Active</span>
+                   </div>
+                   <h2 className="text-3xl font-black tracking-tight text-zinc-900">Intervention Audit</h2>
+                   <p className="text-sm text-zinc-500 font-bold uppercase tracking-widest">Case ID: {selectedIncident.id}</p>
+                </div>
+                <button onClick={() => setIsSelectingOutcome(false)} className="p-3 bg-zinc-50 text-zinc-400 rounded-2xl hover:bg-zinc-100 transition-all">
+                   <X size={24} />
+                </button>
+             </div>
+
+             <div className="grid grid-cols-2 gap-6 relative z-10 mb-10">
+                <OutcomeTile 
+                  icon={UserCheck} 
+                  label="Driver Responsive" 
+                  desc="Behavior corrected immediately after voice protocol."
+                  color="emerald"
+                  onClick={() => finalizeOutcome(selectedIncident.id, 'RESPONSIVE')}
+                />
+                <OutcomeTile 
+                  icon={CircleStop} 
+                  label="Driver Stopped" 
+                  desc="Safe stop performed in designated or monitored zone."
+                  color="blue"
+                  onClick={() => finalizeOutcome(selectedIncident.id, 'STOPPED')}
+                />
+                <OutcomeTile 
+                  icon={ShieldAlert} 
+                  label="Escalated" 
+                  desc="Case required field HSSE or manual supervisor bypass."
+                  color="rose"
+                  onClick={() => finalizeOutcome(selectedIncident.id, 'ESCALATED')}
+                />
+                <OutcomeTile 
+                  icon={ZapOff} 
+                  label="False Positive" 
+                  desc="Sensor glitch, glare, or false AI behavioral trigger."
+                  color="zinc"
+                  onClick={() => finalizeOutcome(selectedIncident.id, 'FALSE_POSITIVE')}
+                />
+             </div>
+
+             <div className="bg-zinc-50 p-6 rounded-[32px] border border-zinc-100 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                   <div className="p-3 bg-white rounded-2xl border border-zinc-200 text-indigo-600 shadow-sm">
+                      <Dna size={20} />
+                   </div>
+                   <div>
+                      <p className="text-[10px] font-black uppercase text-zinc-400 tracking-widest mb-0.5">Neural Training Impact</p>
+                      <p className="text-xs font-bold text-zinc-700">Calibrating RTC Prediction Accuracy for {selectedIncident.category?.replace('_', ' ') || 'Behavioral'} streams.</p>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
+      )}
+
       {/* Left Panel: Regional Response Queue */}
       <div className="w-80 flex flex-col gap-4 overflow-hidden">
         <div className="flex items-center justify-between px-2">
@@ -384,7 +457,7 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
               title="Active Incidents (Awaiting Action)"
             >
               <Inbox size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">{incidents.filter(i => i.status === 'OPEN').length}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">{incidents.filter(i => i.status !== 'CLOSED').length}</span>
             </button>
             <button 
               onClick={() => setCurrentTab('archived')}
@@ -392,7 +465,7 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
               title="History & Reassigned Cases"
             >
               <Archive size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">{incidents.filter(i => i.status !== 'OPEN').length}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">{incidents.filter(i => i.status === 'CLOSED').length}</span>
             </button>
           </div>
         </div>
@@ -447,7 +520,7 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
                    </h4>
                    {isReassigned && <Forward size={14} className="text-rose-600 animate-pulse" />}
                    {isUncategorized && inc.status === 'OPEN' && (
-                     <Sparkles size={14} className="text-blue-500 animate-pulse" title="Needs AI Triage" />
+                     <Sparkles size={14} className="text-blue-500 animate-pulse" />
                    )}
                 </div>
 
@@ -485,7 +558,7 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
                   <div className={`flex items-center gap-1.5 text-[10px] font-bold ${selectedIncident?.id === inc.id && viewMode === 'list' ? 'text-gray-500' : 'text-gray-400'}`}>
                     <Clock size={12} /> {inc.startTime}
                   </div>
-                  {inc.status === 'CLOSED' && <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500 flex items-center gap-1"><CheckCircle2 size={10}/> Resolved</div>}
+                  {inc.status === 'CLOSED' && <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500 flex items-center gap-1"><CheckCircle2 size={10}/> {inc.outcome?.replace('_', ' ') || 'Resolved'}</div>}
                 </div>
               </button>
             );
@@ -537,18 +610,34 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
                   <div className="flex gap-4">
                     {selectedIncident.status === 'OPEN' ? (
                       <button 
-                        onClick={() => handleResolve(selectedIncident.id)}
+                        onClick={handleBeginResolve}
                         className="bg-emerald-600 text-white px-8 py-3 rounded-[20px] text-sm font-black uppercase tracking-widest shadow-xl shadow-emerald-100 flex items-center gap-2 hover:bg-emerald-700 hover:scale-[1.02] active:scale-95 transition-all"
                       >
                         <Archive size={18} /> Close & Archive
                       </button>
-                    ) : (
+                    ) : selectedIncident.status === 'CLOSED' ? (
                       <button 
                         onClick={() => handleReopen(selectedIncident.id)}
                         className="bg-zinc-900 text-white px-8 py-3 rounded-[20px] text-sm font-black uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-black hover:scale-[1.02] active:scale-95 transition-all"
                       >
                         <RefreshCw size={18} /> Restore Control
                       </button>
+                    ) : (
+                      // For ESCALATED or HSSE_ESCALATED cases
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={handleBeginResolve}
+                          className="bg-emerald-600 text-white px-6 py-3 rounded-[20px] text-sm font-black uppercase tracking-widest shadow-xl shadow-emerald-100 flex items-center gap-2 hover:bg-emerald-700 transition-all"
+                        >
+                          <Archive size={18} /> Resolve & Archive
+                        </button>
+                        <button 
+                          onClick={() => handleReopen(selectedIncident.id)}
+                          className="bg-zinc-100 text-zinc-600 px-6 py-3 rounded-[20px] text-sm font-black uppercase tracking-widest hover:bg-zinc-200 transition-all"
+                        >
+                          <RefreshCw size={18} /> Restore Control
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -643,7 +732,6 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
                   </div>
 
                   <div className="col-span-4 space-y-6 overflow-y-auto custom-scrollbar">
-                    {/* NEW: Proactive AI Triage HUD */}
                     {selectedIncident.status === 'OPEN' && !selectedIncident.category && (
                       <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-8 rounded-[40px] border border-blue-100 shadow-xl relative overflow-hidden group">
                          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform">
@@ -784,6 +872,37 @@ const IncidentWorkspace: React.FC<Props> = ({ alerts, onAddTicket, units, incide
           </div>
       </div>
     </div>
+  );
+};
+
+const OutcomeTile = ({ icon: Icon, label, desc, color, onClick }: any) => {
+  const styles: Record<string, string> = {
+    emerald: 'border-emerald-100 hover:border-emerald-500 hover:bg-emerald-50 text-emerald-600',
+    blue: 'border-blue-100 hover:border-blue-500 hover:bg-blue-50 text-blue-600',
+    rose: 'border-rose-100 hover:border-rose-500 hover:bg-rose-50 text-rose-600',
+    zinc: 'border-zinc-200 hover:border-zinc-900 hover:bg-zinc-50 text-zinc-400 hover:text-zinc-900',
+  };
+
+  const iconStyles: Record<string, string> = {
+    emerald: 'bg-emerald-500 text-white',
+    blue: 'bg-blue-500 text-white',
+    rose: 'bg-rose-500 text-white',
+    zinc: 'bg-zinc-200 text-zinc-600',
+  };
+
+  return (
+    <button 
+      onClick={onClick}
+      className={`p-6 rounded-[32px] border text-left transition-all group relative overflow-hidden flex flex-col justify-between h-40 ${styles[color]}`}
+    >
+       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-lg ${iconStyles[color]}`}>
+          <Icon size={24} />
+       </div>
+       <div>
+          <h4 className="font-black text-sm uppercase tracking-tight mb-1 group-hover:text-inherit">{label}</h4>
+          <p className="text-[10px] text-zinc-400 font-bold leading-relaxed">{desc}</p>
+       </div>
+    </button>
   );
 };
 

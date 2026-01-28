@@ -38,7 +38,7 @@ import OperationalReport from './components/OperationalReport';
 import TechnicianTicketing from './components/TechnicianTicketing';
 import HseDashboard from './components/HseDashboard';
 import LeadKpiDashboard from './components/LeadKpiDashboard';
-import { Unit, Alert, AlertSeverity, AlertCategory, DEFAULT_CATEGORIES, AutoCloseRule, JobOrder, JobOrderStatus, VehicleState, DriverBehaviorState, Ticket, TicketStatus, Incident } from './types';
+import { Unit, Alert, AlertSeverity, AlertCategory, DEFAULT_CATEGORIES, AutoCloseRule, JobOrder, JobOrderStatus, VehicleState, DriverBehaviorState, Ticket, TicketStatus, Incident, IncidentOutcome } from './types';
 
 const MOCK_LOs: JobOrder[] = [
   { id: 'LO-9901', vehicleId: 'TRK-001', driverId: 'D-101', origin: 'Plumpang Depot', destination: 'SPBU 31.123', plannedStart: '08:00', plannedArrival: '14:20', status: JobOrderStatus.IN_TRANSIT, volume: 24000, route: 'Route Alpha', slaConfidence: 'High' },
@@ -61,6 +61,7 @@ const INITIAL_INCIDENTS: Incident[] = [
     unitId: 'TRK-003',
     status: 'OPEN',
     severity: AlertSeverity.CRITICAL,
+    outcome: 'PENDING',
     lastActivityTime: Date.now() - 60000,
     category: 'DMS_Fatigue',
     timeline: [
@@ -77,6 +78,7 @@ const INITIAL_INCIDENTS: Incident[] = [
     unitId: 'TRK-002',
     status: 'OPEN',
     severity: AlertSeverity.WARNING,
+    outcome: 'PENDING',
     lastActivityTime: Date.now() - 240000,
     timeline: [
       { time: '11:02:10', event: 'DMS: High distraction rate (Mobile usage risk)' },
@@ -90,6 +92,7 @@ const INITIAL_INCIDENTS: Incident[] = [
     unitId: 'TRK-009',
     status: 'OPEN',
     severity: AlertSeverity.CRITICAL,
+    outcome: 'PENDING',
     lastActivityTime: Date.now(),
     timeline: [
       { time: '11:15:00', event: 'DMS: Camera Blockage detected' },
@@ -136,6 +139,10 @@ const App: React.FC = () => {
 
   const updateIncidentStatus = (id: string, status: Incident['status']) => {
     setIncidents(prev => prev.map(inc => inc.id === id ? { ...inc, status, lastActivityTime: Date.now() } : inc));
+  };
+
+  const setIncidentOutcome = (id: string, outcome: IncidentOutcome) => {
+    setIncidents(prev => prev.map(inc => inc.id === id ? { ...inc, outcome, status: 'CLOSED', lastActivityTime: Date.now() } : inc));
   };
 
   const updateIncidentCategory = (id: string, category: AlertCategory) => {
@@ -251,10 +258,11 @@ const App: React.FC = () => {
                 onUpdateStatus={updateIncidentStatus}
                 onUpdateCategory={updateIncidentCategory}
                 onAddEvent={addIncidentEvent}
+                onSetOutcome={setIncidentOutcome}
               />} />
               <Route path="/lead-kpi" element={<LeadKpiDashboard />} />
-              <Route path="/schedule" element={<ScheduleTimeline jobOrders={jobOrders} />} />
-              <Route path="/report" element={<OperationalReport units={units} jobOrders={jobOrders} alerts={alerts} />} />
+              <Route path="/schedule" element={<ScheduleTimeline jobOrders={jobOrders} units={units} />} />
+              <Route path="/report" element={<OperationalReport units={units} jobOrders={jobOrders} alerts={alerts} incidents={incidents} />} />
               <Route path="/ticketing" element={<TechnicianTicketing tickets={tickets} onUpdateTicket={updateTicketStatus} />} />
               <Route path="/hse" element={<HseDashboard incidents={incidents} onUpdateStatus={updateIncidentStatus} onAddEvent={addIncidentEvent} />} />
               <Route path="/analytics" element={<Analytics />} />
@@ -276,7 +284,7 @@ const SidebarNav = () => {
     <div className="space-y-6">
       <section>
         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 mb-3">RTC Monitoring</div>
-        <SidebarItem icon={LayoutDashboard} label="Command Center" path="/" active={location.pathname === '/'} />
+        <SidebarItem icon={LayoutDashboard} label="Data RTC" path="/" active={location.pathname === '/'} />
         <SidebarItem icon={MapIcon} label="Live Tracker" path="/map" active={location.pathname === '/map'} />
         <SidebarItem icon={AlertTriangle} label="Incident Center" path="/incidents" active={location.pathname === '/incidents'} />
       </section>

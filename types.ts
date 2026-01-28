@@ -84,6 +84,8 @@ export interface Alert {
   evidenceId?: string;
 }
 
+export type IncidentOutcome = 'RESPONSIVE' | 'STOPPED' | 'ESCALATED' | 'FALSE_POSITIVE' | 'PENDING';
+
 export interface Incident {
   id: string;
   startTime: string;
@@ -91,6 +93,7 @@ export interface Incident {
   status: 'OPEN' | 'ESCALATED' | 'HSSE_ESCALATED' | 'CLOSED';
   severity: AlertSeverity;
   category?: AlertCategory;
+  outcome?: IncidentOutcome;
   timeline: { time: string; event: string }[];
   evidenceSnapshot?: string;
   lastActivityTime?: number;

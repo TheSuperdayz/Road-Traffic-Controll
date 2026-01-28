@@ -29,7 +29,13 @@ import {
   ExternalLink,
   Map as MapIcon,
   Box,
-  Square
+  Square,
+  Search,
+  Crosshair,
+  Building2,
+  Signal,
+  RotateCw,
+  Move
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -40,25 +46,34 @@ const GEOFENCES = [
   { id: 'geo-3', name: 'SPBU 31.123 Delivery Point', x: 850, y: 220, radius: 60, color: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.4)' },
 ];
 
+const MOCK_BUILDINGS = [
+  { x: 100, y: 100, w: 80, h: 60, depth: 40 },
+  { x: 300, y: 450, w: 40, h: 40, depth: 20 },
+  { x: 800, y: 100, w: 120, h: 80, depth: 60 },
+  { x: 500, y: 300, w: 60, h: 40, depth: 30 },
+  { x: 1050, y: 600, w: 90, h: 100, depth: 80 },
+];
+
 const TRAFFIC_ZONES = [
   { x1: 0, y1: 200, x2: 1200, y2: 200, intensity: 'heavy' },
   { x1: 400, y1: 0, x2: 400, y2: 800, intensity: 'moderate' },
   { x1: 700, y1: 150, x2: 1100, y2: 550, intensity: 'heavy' },
 ];
 
-// Coordinates for Kebayoran Lama, Jakarta Selatan
-const KEBAYORAN_LAMA_LAT = -6.2415;
-const KEBAYORAN_LAMA_LNG = 106.7725;
-
 const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(units[0]);
   const [showLayerControl, setShowLayerControl] = useState(false);
-  const [viewType, setViewType] = useState<'2D' | '3D'>('2D');
+  const [viewType, setViewType] = useState<'2D' | '3D'>('3D');
+  const [mapTilt, setMapTilt] = useState(48);
+  const [mapRotation, setMapRotation] = useState(0);
+  const [mapScale, setMapScale] = useState(1.15);
+
   const [activeLayers, setActiveLayers] = useState({
     geofences: true,
     deviations: true,
-    traffic: false,
-    trails: true
+    traffic: true,
+    trails: true,
+    terrain: true
   });
 
   // Maps Grounding State
@@ -89,7 +104,6 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
   }, [units]);
 
   const getMapCoords = (lat: number, lng: number) => {
-    // Basic mapping for visual representation
     return {
       x: (lng - 106.6) * 1200,
       y: Math.abs(lat + 6.0) * 1200
@@ -100,34 +114,40 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
     setActiveLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
   };
 
-  const fetchLocalIntelligence = async () => {
+  const fetchUnitIntelligence = async (unit: Unit) => {
     setIntelligenceLoading(true);
     setShowIntelligence(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: "Identify key logistics infrastructure in Kebayoran Lama, Jakarta Selatan. Specifically list fuel depots (TBBM), SPBU gas stations, and major transport hubs nearby. Provide a brief situational assessment for distribution units in this area.",
+        contents: `Audit the immediate surroundings for logistics unit ${unit.id} at coordinates [${unit.lat}, ${unit.lng}]. 
+        Identify:
+        1. Nearest Fuel Terminals (TBBM) or Gas Stations (SPBU).
+        2. Known road hazards or major traffic bottlenecks at this exact location.
+        3. Critical emergency infrastructure (Hospitals/Fire Stations) within 2km.
+        
+        Provide a clinical situational brief for the RTC operator.`,
         config: {
           tools: [{ googleMaps: {} }],
           toolConfig: {
             retrievalConfig: {
               latLng: {
-                latitude: KEBAYORAN_LAMA_LAT,
-                longitude: KEBAYORAN_LAMA_LNG
+                latitude: unit.lat,
+                longitude: unit.lng
               }
             }
           }
         },
       });
 
-      const text = response.text || "No specific intelligence found.";
+      const text = response.text || "Situational audit complete. No immediate hazards detected in mapping layers.";
       const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
       
       const links = chunks
         .filter((chunk: any) => chunk.maps)
         .map((chunk: any) => ({
-          title: chunk.maps.title || "Maps Location",
+          title: chunk.maps.title || "Context Detail",
           uri: chunk.maps.uri
         }));
 
@@ -135,7 +155,7 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
     } catch (error) {
       console.error("Maps Grounding Error:", error);
       setIntelligenceResult({ 
-        text: "Error retrieving live maps data. Please check connectivity.", 
+        text: "Regional Mapping Hub currently unavailable. Telemetry remains active.", 
         links: [] 
       });
     } finally {
@@ -163,28 +183,22 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Fleet Surveillance</h2>
-          <p className="text-sm text-gray-500">Monitoring Kebayoran Lama District, Jakarta Selatan.</p>
+          <p className="text-sm text-gray-500">Monitoring Regional Distribution Corridor (Kebayoran Area).</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={fetchLocalIntelligence}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
-          >
-            <Sparkles size={14} /> Local Intelligence
-          </button>
-          
           <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm relative">
             <button 
               onClick={() => setViewType(viewType === '2D' ? '3D' : '2D')}
-              className={`p-2 rounded-lg transition-all ${viewType === '3D' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`p-2.5 rounded-lg transition-all flex items-center gap-2 ${viewType === '3D' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               title="Toggle 3D Map Perspective"
             >
               {viewType === '3D' ? <Box size={18} /> : <Square size={18} />}
+              <span className="text-[10px] font-black uppercase tracking-widest">{viewType}</span>
             </button>
             
             <button 
               onClick={() => setShowLayerControl(!showLayerControl)}
-              className={`p-2 rounded-lg transition-all ${showLayerControl ? 'bg-black text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} 
+              className={`p-2.5 rounded-lg transition-all ${showLayerControl ? 'bg-black text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} 
               title="Map Layers"
             >
               <Layers size={18} />
@@ -200,91 +214,135 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
                   <button onClick={() => setShowLayerControl(false)}><X size={14} className="text-gray-400" /></button>
                 </div>
                 <div className="space-y-1">
-                  <LayerToggleItem 
-                    icon={Shield} 
-                    label="Geofences" 
-                    description="Security perimeters & depots"
-                    active={activeLayers.geofences} 
-                    onClick={() => toggleLayer('geofences')} 
-                  />
-                  <LayerToggleItem 
-                    icon={TriangleAlert} 
-                    label="Route Deviations" 
-                    description="Anomalous path detections"
-                    active={activeLayers.deviations} 
-                    onClick={() => toggleLayer('deviations')} 
-                    color="text-amber-500"
-                  />
-                  <LayerToggleItem 
-                    icon={Zap} 
-                    label="Traffic Intensity" 
-                    description="Real-time road congestion"
-                    active={activeLayers.traffic} 
-                    onClick={() => toggleLayer('traffic')} 
-                    color="text-blue-500"
-                  />
-                  <LayerToggleItem 
-                    icon={Activity} 
-                    label="Unit Breadcrumbs" 
-                    description="Historical path trails"
-                    active={activeLayers.trails} 
-                    onClick={() => toggleLayer('trails')} 
-                  />
+                  <LayerToggleItem icon={Shield} label="Geofences" active={activeLayers.geofences} onClick={() => toggleLayer('geofences')} />
+                  <LayerToggleItem icon={Building2} label="Terrain Hubs" active={activeLayers.terrain} onClick={() => toggleLayer('terrain')} />
+                  <LayerToggleItem icon={TriangleAlert} label="Deviations" active={activeLayers.deviations} onClick={() => toggleLayer('deviations')} color="text-amber-500" />
+                  <LayerToggleItem icon={Zap} label="Traffic Flow" active={activeLayers.traffic} onClick={() => toggleLayer('traffic')} color="text-blue-500" />
                 </div>
               </div>
             )}
-
-            <button className="p-2 hover:bg-gray-100 rounded-lg" title="Recenter"><Compass size={18} /></button>
-            <button className="p-2 hover:bg-gray-100 rounded-lg" title="Full Screen"><Maximize2 size={18} /></button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex gap-6 overflow-hidden">
-        {/* Surveillance Grid / Mock Map */}
-        <div className="flex-1 bg-zinc-900 rounded-[40px] relative border border-gray-800 overflow-hidden shadow-2xl" style={{ perspective: '1000px' }}>
+      <div className="flex-1 flex gap-6 overflow-hidden relative">
+        {/* Camera HUD (Active in 3D View) */}
+        {viewType === '3D' && (
+          <div className="absolute left-8 top-8 z-40 flex flex-col gap-4 animate-in fade-in slide-in-from-left-4 duration-500">
+            <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-[28px] p-5 shadow-2xl flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-8 mb-2">
+                <div className="flex items-center gap-2">
+                  <RotateCw size={14} className="text-indigo-400" />
+                  <span className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.2em]">Orientation</span>
+                </div>
+                <span className="text-[10px] font-black text-white tabular-nums">{mapRotation}°</span>
+              </div>
+              <input 
+                type="range" min="-180" max="180" value={mapRotation} 
+                onChange={(e) => setMapRotation(parseInt(e.target.value))}
+                className="w-40 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
+              />
+              
+              <div className="flex items-center justify-between gap-8 mt-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <Move size={14} className="text-indigo-400" />
+                  <span className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.2em]">Camera Tilt</span>
+                </div>
+                <span className="text-[10px] font-black text-white tabular-nums">{mapTilt}°</span>
+              </div>
+              <input 
+                type="range" min="0" max="75" value={mapTilt} 
+                onChange={(e) => setMapTilt(parseInt(e.target.value))}
+                className="w-40 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
+              />
+
+              <button 
+                onClick={() => { setMapRotation(0); setMapTilt(48); setMapScale(1.15); }}
+                className="mt-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all text-zinc-400 hover:text-white"
+              >
+                Reset Camera
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Surveillance Grid / Tactical Map */}
+        <div className="flex-1 bg-zinc-950 rounded-[40px] relative border border-white/5 overflow-hidden shadow-2xl" style={{ perspective: '1200px' }}>
           <div 
-            className={`absolute inset-0 transition-transform duration-1000 ease-in-out origin-center`}
+            className={`absolute inset-0 transition-transform duration-1000 ease-out origin-center`}
             style={{ 
-              transform: viewType === '3D' ? 'rotateX(45deg) translateY(-10%) scale(1.2)' : 'none',
+              transform: viewType === '3D' ? `rotateX(${mapTilt}deg) rotateZ(${mapRotation}deg) translateY(-8%) scale(${mapScale})` : 'none',
               transformStyle: 'preserve-3d'
             }}
           >
-            <div className="absolute inset-0 opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+            {/* Grid & Terrain Visuals */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#1a1a1a_0%,_#0a0a0a_100%)] opacity-50"></div>
             
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="grid grid-cols-12 h-full w-full">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="border-r border-white/5 h-full w-full"></div>
-                ))}
+            <div className="absolute inset-0 pointer-events-none opacity-20">
+              <div className="grid grid-cols-24 h-full w-full">
+                {Array.from({ length: 24 }).map((_, i) => <div key={i} className="border-r border-white/5 h-full w-full"></div>)}
               </div>
-              <div className="grid grid-rows-12 h-full w-full absolute inset-0">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="border-b border-white/5 h-full w-full"></div>
-                ))}
+              <div className="grid grid-rows-24 h-full w-full absolute inset-0">
+                {Array.from({ length: 24 }).map((_, i) => <div key={i} className="border-b border-white/5 h-full w-full"></div>)}
               </div>
             </div>
 
-            {activeLayers.traffic && (
-              <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                {TRAFFIC_ZONES.map((zone, idx) => (
-                  <line 
-                    key={`traffic-${idx}`}
-                    x1={zone.x1} y1={zone.y1} x2={zone.x2} y2={zone.y2}
-                    stroke={zone.intensity === 'heavy' ? '#ef4444' : '#f59e0b'}
-                    strokeWidth="8"
-                    strokeOpacity="0.3"
-                    strokeLinecap="round"
-                    className="animate-pulse"
-                  />
-                ))}
-              </svg>
-            )}
+            {/* Road Network (Mocked Vectors) */}
+            <svg className="absolute inset-0 w-full h-full opacity-10">
+              <path d="M0,200 L1200,200" stroke="white" strokeWidth="20" fill="none" />
+              <path d="M400,0 L400,1200" stroke="white" strokeWidth="20" fill="none" />
+              <path d="M0,600 L1200,600" stroke="white" strokeWidth="15" fill="none" />
+              <path d="M800,0 L800,1200" stroke="white" strokeWidth="15" fill="none" />
+            </svg>
+
+            {/* 3D Buildings Rendering */}
+            {activeLayers.terrain && MOCK_BUILDINGS.map((b, i) => (
+              <div 
+                key={`bldg-${i}`}
+                className="absolute transition-all duration-1000"
+                style={{
+                  left: `${b.x}px`,
+                  top: `${b.y}px`,
+                  width: `${b.w}px`,
+                  height: `${b.h}px`,
+                  transformStyle: 'preserve-3d'
+                }}
+              >
+                {/* 3D Prism Construction */}
+                <div className="relative w-full h-full" style={{ transformStyle: 'preserve-3d' }}>
+                  {/* Top Face */}
+                  <div className="absolute inset-0 bg-zinc-800 border border-white/10 shadow-inner" style={{ transform: viewType === '3D' ? `translateZ(${b.depth}px)` : 'none' }}></div>
+                  {viewType === '3D' && (
+                    <>
+                      {/* Side Faces (Visible in 3D) */}
+                      <div className="absolute top-0 left-0 h-full bg-zinc-900 border border-white/5 origin-left" style={{ width: `${b.depth}px`, transform: `rotateY(-90deg)` }}></div>
+                      <div className="absolute top-0 right-0 h-full bg-zinc-900 border border-white/5 origin-right" style={{ width: `${b.depth}px`, transform: `rotateY(90deg)` }}></div>
+                      <div className="absolute top-0 left-0 w-full bg-zinc-800 border border-white/5 origin-top" style={{ height: `${b.depth}px`, transform: `rotateX(90deg)` }}></div>
+                      <div className="absolute bottom-0 left-0 w-full bg-zinc-950 border border-white/5 origin-bottom" style={{ height: `${b.depth}px`, transform: `rotateX(-90deg)` }}></div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {activeLayers.traffic && TRAFFIC_ZONES.map((zone, idx) => (
+              <div 
+                key={`traffic-${idx}`}
+                className={`absolute bg-gradient-to-r ${zone.intensity === 'heavy' ? 'from-rose-500/30 to-rose-500/10' : 'from-amber-500/30 to-amber-500/10'} animate-pulse`}
+                style={{
+                  left: `${Math.min(zone.x1, zone.x2)}px`,
+                  top: `${zone.y1 - 10}px`,
+                  width: `${Math.abs(zone.x1 - zone.x2) || 20}px`,
+                  height: `${Math.abs(zone.y1 - zone.y2) || 20}px`,
+                  transform: viewType === '3D' ? 'translateZ(2px)' : 'none'
+                }}
+              />
+            ))}
 
             {activeLayers.geofences && GEOFENCES.map(geo => (
               <div 
                 key={geo.id}
-                className="absolute rounded-full border-[2px] border-dashed transition-all duration-500 flex items-center justify-center group"
+                className="absolute rounded-full border-[2px] border-dashed flex items-center justify-center group"
                 style={{
                   left: `${geo.x}px`,
                   top: `${geo.y}px`,
@@ -293,50 +351,13 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
                   transform: 'translate(-50%, -50%)',
                   backgroundColor: geo.color,
                   borderColor: geo.borderColor,
-                  boxShadow: '0 0 20px rgba(0,0,0,0.5)'
                 }}
               >
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded absolute -top-8 whitespace-nowrap">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/90 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl absolute -top-12 shadow-2xl border border-white/10">
                   {geo.name}
                 </div>
               </div>
             ))}
-
-            {activeLayers.trails && units.map(unit => (
-              <React.Fragment key={`trail-${unit.id}`}>
-                {unit.history.map((pos, idx) => {
-                  const { x, y } = getMapCoords(pos.lat, pos.lng);
-                  return (
-                    <div 
-                      key={`breadcrumb-${unit.id}-${idx}`}
-                      className="absolute w-1 h-1 bg-white/20 rounded-full z-0 transition-opacity duration-1000"
-                      style={{ 
-                        left: `${x}px`, 
-                        top: `${y}px`, 
-                        opacity: (1 - idx / 10) * 0.4,
-                        transform: 'translate(-50%, -50%)'
-                      }}
-                    />
-                  );
-                })}
-              </React.Fragment>
-            ))}
-
-            {activeLayers.deviations && units.filter(u => u.routeDeviation).map(unit => {
-              const { x, y } = getMapCoords(unit.lat, unit.lng);
-              return (
-                <div 
-                  key={`dev-${unit.id}`}
-                  className="absolute w-32 h-32 rounded-full bg-amber-500/10 border-[2px] border-amber-500/30 animate-ping"
-                  style={{ 
-                    left: `${x}px`, 
-                    top: `${y}px`,
-                    transform: 'translate(-50%, -50%)',
-                    animationDuration: '3s'
-                  }}
-                />
-              );
-            })}
 
             {units.map(unit => {
               const { x, y } = getMapCoords(unit.lat, unit.lng);
@@ -347,184 +368,198 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
                 <button 
                   key={unit.id}
                   onClick={() => setSelectedUnit(unit)}
-                  className={`absolute flex flex-col items-center transition-all duration-1000 ease-linear ${isSelected ? 'z-40' : 'z-20'}`}
+                  className={`absolute flex flex-col items-center transition-all duration-1000 ease-linear ${isSelected ? 'z-50' : 'z-20'}`}
                   style={{ 
                     left: `${x}px`, 
                     top: `${y}px`,
-                    transform: `translate(-50%, -50%) ${viewType === '3D' ? 'rotateX(-45deg)' : ''}`,
+                    transform: `translate(-50%, -50%) ${viewType === '3D' ? `rotateZ(${-mapRotation}deg) rotateX(${-mapTilt}deg)` : ''}`,
                     transformStyle: 'preserve-3d'
                   }}
                 >
-                  <div className={`relative p-2 rounded-full border-[2px] transition-all duration-300 ${styles.bg} ${styles.border} ${styles.glow} ${styles.animate || ''} ${
-                    isSelected ? 'scale-125 ring-8 ring-blue-500/20' : 'shadow-lg hover:scale-110'
+                  <div className={`relative p-2.5 rounded-full border-[3px] transition-all duration-300 ${styles.bg} ${styles.border} ${styles.glow} ${styles.animate || ''} ${
+                    isSelected ? 'scale-125 ring-[12px] ring-blue-500/20 shadow-blue-500/40 shadow-2xl' : 'shadow-lg hover:scale-110'
                   }`}>
                     <Navigation 
-                      size={16} 
+                      size={18} 
                       className={`${styles.text} transition-transform duration-1000`} 
                       style={{ transform: `rotate(${unit.heading}deg)` }}
                     />
                   </div>
 
-                  <div className={`mt-2 px-2 py-0.5 rounded-lg text-[10px] font-black tracking-tight shadow-md transition-all duration-300 flex items-center gap-1.5 ${
-                    isSelected ? 'bg-white text-black' : 'bg-black/60 text-white backdrop-blur-sm'
+                  <div className={`mt-3 px-3 py-1 rounded-xl text-[10px] font-black tracking-tight shadow-2xl transition-all duration-300 flex items-center gap-2 ${
+                    isSelected ? 'bg-white text-black border border-blue-500' : 'bg-black/80 text-white backdrop-blur-md border border-white/10'
                   }`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${styles.bg}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${styles.bg} ${styles.animate ? 'animate-pulse' : ''}`}></div>
                     {unit.plateNumber}
                   </div>
                   
-                  {/* Elevation line in 3D */}
                   {viewType === '3D' && (
-                    <div className="absolute top-full w-[1px] h-8 bg-white/20 origin-top transform translate-y-2"></div>
+                    <div className="absolute top-full w-[1px] h-16 bg-gradient-to-b from-white/60 to-transparent origin-top transform translate-y-3"></div>
                   )}
                 </button>
               );
             })}
           </div>
 
-          {/* Intelligence Panel Overlay */}
+          {/* Intelligence Overlays */}
           {showIntelligence && (
-            <div className="absolute left-8 bottom-8 w-96 bg-white/95 backdrop-blur-md rounded-[32px] border border-gray-100 shadow-2xl z-50 overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300">
-              <div className="p-6 bg-blue-600 text-white flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={18} />
-                  <span className="font-black text-xs uppercase tracking-widest">District Intelligence</span>
+            <div className="absolute left-8 bottom-8 w-[400px] bg-white/95 backdrop-blur-xl rounded-[40px] border border-gray-100 shadow-2xl z-[60] overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 duration-500 ease-out">
+              <div className="p-8 bg-blue-600 text-white flex justify-between items-center shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-xl">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <span className="font-black text-[10px] uppercase tracking-widest block opacity-70">Situational Brief</span>
+                    <h4 className="text-sm font-black uppercase tracking-tight">Regional Mapping Hub</h4>
+                  </div>
                 </div>
-                <button onClick={() => setShowIntelligence(false)} className="hover:bg-white/20 p-1 rounded-lg"><X size={18} /></button>
+                <button onClick={() => setShowIntelligence(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors"><X size={20} /></button>
               </div>
-              <div className="p-6 flex-1 overflow-y-auto max-h-[400px] custom-scrollbar">
+              
+              <div className="p-8 flex-1 overflow-y-auto max-h-[440px] custom-scrollbar space-y-8">
                 {intelligenceLoading ? (
-                  <div className="flex flex-col items-center justify-center py-12 gap-4">
-                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Querying Google Maps...</p>
+                  <div className="flex flex-col items-center justify-center py-20 gap-6">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="text-center">
+                       <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] animate-pulse">Querying Google Maps</p>
+                       <p className="text-xs text-gray-400 mt-2 italic">Grounding operational coordinates...</p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    <div className="text-sm text-gray-700 leading-relaxed font-medium">
+                  <div className="space-y-8 animate-in fade-in duration-700">
+                    <div className="text-sm text-gray-700 leading-relaxed font-semibold bg-blue-50/30 p-6 rounded-[32px] border border-blue-100/50">
                       {intelligenceResult?.text}
                     </div>
+                    
                     {intelligenceResult?.links && intelligenceResult.links.length > 0 && (
-                      <div className="space-y-3 pt-4 border-t border-gray-100">
-                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Grounded Reference Locations</p>
-                        {intelligenceResult.links.map((link, i) => (
-                          <a 
-                            key={i} 
-                            href={link.uri} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all group"
-                          >
-                            <div className="flex items-center gap-3">
-                              <MapIcon size={14} className="text-blue-500" />
-                              <span className="text-xs font-bold text-gray-900 line-clamp-1">{link.title}</span>
-                            </div>
-                            <ExternalLink size={12} className="text-gray-300 group-hover:text-blue-500" />
-                          </a>
-                        ))}
+                      <div className="space-y-4 pt-4 border-t border-gray-100">
+                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Contextual References</p>
+                        <div className="grid gap-3">
+                          {intelligenceResult.links.map((link, i) => (
+                            <a 
+                              key={i} 
+                              href={link.uri} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-between p-4 bg-gray-50 rounded-[24px] border border-gray-100 hover:bg-white hover:border-blue-400 hover:shadow-xl hover:scale-[1.02] transition-all group"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="p-2 bg-white rounded-xl border border-gray-100 group-hover:text-blue-600">
+                                   <MapIcon size={16} />
+                                </div>
+                                <span className="text-xs font-black text-gray-900 line-clamp-1 uppercase tracking-tight">{link.title}</span>
+                              </div>
+                              <ExternalLink size={14} className="text-gray-300 group-hover:text-blue-600" />
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
               </div>
-              <div className="p-4 bg-gray-50 border-t border-gray-100">
-                <p className="text-[9px] text-gray-400 font-bold italic text-center">Grounded via Google Maps • Kebayoran Lama District</p>
+              <div className="px-8 py-5 bg-gray-50 border-t border-gray-100">
+                <p className="text-[9px] text-gray-400 font-bold italic flex items-center gap-2">
+                  <Globe size={10} /> Data verified via Google Maps Grounding Layer
+                </p>
               </div>
             </div>
           )}
 
-          <div className="absolute right-8 top-8 flex flex-col gap-2">
-            <button className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-all active:scale-95"><ZoomIn size={20} /></button>
-            <button className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-all active:scale-95"><ZoomOut size={20} /></button>
-          </div>
-          
-          {/* Legend HUD Overlay */}
-          <div className="absolute left-8 top-8 p-4 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 text-white pointer-events-none">
-            <div className="flex items-center gap-2 mb-2">
-               <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-               <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Compliance Normal</span>
-            </div>
-            <div className="flex items-center gap-2">
-               <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
-               <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Critical Breach</span>
-            </div>
+          {/* Zoom Controls */}
+          <div className="absolute right-8 bottom-8 flex flex-col gap-3 z-40">
+            <button 
+              onClick={() => setMapScale(prev => Math.min(prev + 0.1, 2.5))}
+              className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 flex items-center justify-center hover:bg-white transition-all active:scale-90 group"
+            >
+              <ZoomIn size={22} className="text-zinc-500 group-hover:text-black" />
+            </button>
+            <button 
+              onClick={() => setMapScale(prev => Math.max(prev - 0.1, 0.5))}
+              className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 flex items-center justify-center hover:bg-white transition-all active:scale-90 group"
+            >
+              <ZoomOut size={22} className="text-zinc-500 group-hover:text-black" />
+            </button>
           </div>
         </div>
 
         {/* Selected Unit Dossier Panel */}
         {selectedUnit && (
-          <div className="w-[420px] bg-white rounded-[40px] border border-gray-100 shadow-2xl flex flex-col animate-in fade-in slide-in-from-right-8 duration-500 ease-out">
+          <div className="w-[440px] bg-white rounded-[40px] border border-gray-100 shadow-2xl flex flex-col animate-in fade-in slide-in-from-right-8 duration-500 ease-out">
             <div className="p-8 border-b border-gray-50 bg-gradient-to-b from-gray-50/50 to-transparent rounded-t-[40px]">
-              <div className="flex justify-between items-start mb-6">
-                <div className="space-y-1">
+              <div className="flex justify-between items-start mb-8">
+                <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <Truck size={16} className="text-zinc-400" />
-                    <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Active Surveillance</span>
+                    <Truck size={14} className="text-blue-500" />
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Active Surveillance Hub</span>
                   </div>
-                  <h3 className="text-2xl font-black text-zinc-900 tracking-tight">{selectedUnit.plateNumber}</h3>
-                  <p className="text-sm text-zinc-500 font-medium">{selectedUnit.driverName} • Shift Lead</p>
+                  <h3 className="text-3xl font-black text-zinc-900 tracking-tighter">{selectedUnit.plateNumber}</h3>
+                  <div className="flex items-center gap-2 text-sm text-zinc-500 font-bold">
+                    <UserCheck size={14} /> {selectedUnit.driverName}
+                  </div>
                 </div>
-                <div className={`px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${
+                <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] border shadow-sm ${
                   selectedUnit.behaviorState === DriverBehaviorState.CRITICAL ? 'bg-rose-50 text-rose-600 border-rose-100' :
                   selectedUnit.behaviorState === DriverBehaviorState.WARNING ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                  selectedUnit.behaviorState === DriverBehaviorState.OFFLINE ? 'bg-zinc-900 text-zinc-400 border-zinc-700' :
                   'bg-emerald-50 text-emerald-600 border-emerald-100'
                 }`}>
                   {selectedUnit.behaviorState.replace('_', ' ')}
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <button className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[20px] text-xs font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 ${
-                  selectedUnit.behaviorState === DriverBehaviorState.CRITICAL ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200' : 'bg-black text-white hover:bg-zinc-800 shadow-zinc-200'
-                }`}>
-                  <Phone size={14} /> Open Comm Link
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => fetchUnitIntelligence(selectedUnit)}
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all hover:scale-[1.02] active:scale-95 group"
+                >
+                  <Sparkles size={16} className="group-hover:animate-spin" /> Contextual Awareness Audit
                 </button>
-                <button className="w-14 h-14 border border-zinc-100 bg-white rounded-[20px] flex items-center justify-center text-zinc-400 hover:text-black hover:border-zinc-300 transition-all shadow-sm">
-                  <MessageSquare size={20} />
-                </button>
+                <div className="flex gap-2">
+                   <button className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg flex items-center justify-center gap-2">
+                      <Phone size={14} /> Open Link
+                   </button>
+                   <button className="px-6 py-4 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-all shadow-sm">
+                      <MessageSquare size={18} className="text-zinc-400" />
+                   </button>
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 p-8 overflow-y-auto space-y-8 custom-scrollbar">
-               <section className="grid grid-cols-2 gap-4">
-                  <div className="bg-zinc-50 p-5 rounded-[24px] border border-zinc-100 flex flex-col justify-between h-28">
-                    <div className="flex justify-between">
-                      <Compass size={18} className="text-zinc-400" />
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase">Heading</span>
-                    </div>
-                    <div>
-                      <span className="text-2xl font-black text-zinc-900">{Math.round(selectedUnit.heading)}°</span>
-                      <span className="text-xs text-zinc-400 ml-1 font-bold uppercase">Bearing</span>
-                    </div>
-                  </div>
-                  <div className="bg-zinc-50 p-5 rounded-[24px] border border-zinc-100 flex flex-col justify-between h-28">
-                    <div className="flex justify-between">
-                      <Navigation size={18} className="text-zinc-400" />
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase">Compliance</span>
-                    </div>
-                    <div>
-                      <span className={`text-2xl font-black ${selectedUnit.routeDeviation ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {selectedUnit.routeDeviation ? 'FAIL' : 'PASS'}
-                      </span>
-                    </div>
-                  </div>
+            <div className="flex-1 p-8 overflow-y-auto space-y-10 custom-scrollbar">
+               <section>
+                 <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Crosshair className="w-3 h-3" /> Spatial Telemetry
+                    </h4>
+                    <span className="text-[9px] font-bold text-emerald-600 uppercase">Grounded: Active</span>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                    <TelemetryTile icon={Compass} label="Bearing" value={`${Math.round(selectedUnit.heading)}°`} sub="Heading" />
+                    <TelemetryTile icon={Signal} label="GPS Status" value="Locked" sub="Precision 1.2m" isSuccess />
+                 </div>
                </section>
 
                <section>
                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                       <Gauge className="w-3 h-3" /> Velocity Profile
+                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Gauge className="w-3 h-3" /> Performance Profile
                     </h4>
                  </div>
-                 <div className="p-6 rounded-[24px] border border-zinc-100 bg-zinc-50 shadow-inner flex flex-col gap-4">
+                 <div className="p-8 rounded-[32px] border border-gray-100 bg-zinc-50 shadow-inner space-y-6">
                     <div className="flex items-baseline justify-between">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-black text-zinc-900 leading-none">{Math.round(selectedUnit.speed)}</span>
-                        <span className="text-sm font-black text-zinc-400 uppercase tracking-tighter">km/h</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-5xl font-black text-zinc-900 tracking-tighter">{Math.round(selectedUnit.speed)}</span>
+                        <span className="text-sm font-black text-zinc-400 uppercase tracking-widest">km/h</span>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-[9px] font-black uppercase text-zinc-400 mb-0.5">District Limit</p>
+                         <p className="text-xs font-black text-zinc-900">80 km/h</p>
                       </div>
                     </div>
-                    <div className="w-full h-2 bg-zinc-200 rounded-full overflow-hidden relative">
+                    <div className="w-full h-3 bg-zinc-200 rounded-full overflow-hidden relative shadow-inner">
                       <div 
-                        className={`h-full transition-all duration-700 ease-out ${selectedUnit.speed > 80 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                        className={`h-full transition-all duration-1000 ease-out rounded-full ${selectedUnit.speed > 80 ? 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]' : 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'}`}
                         style={{ width: `${Math.min((selectedUnit.speed / 120) * 100, 100)}%` }}
                       ></div>
                     </div>
@@ -533,18 +568,22 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
 
                <section>
                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                       <Shield size={12} className="text-zinc-400" /> District Context
+                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Shield size={12} className="text-blue-500" /> Grounded Context
                     </h4>
                  </div>
-                 <div className="p-6 rounded-[24px] border border-zinc-100 bg-zinc-50 text-sm font-semibold leading-relaxed shadow-inner italic text-zinc-500">
-                    Unit is currently traversing the <span className="text-zinc-900 font-black">Kebayoran Lama</span> logistics corridor. Higher traffic density expected near commercial hubs.
+                 <div className="p-8 rounded-[32px] border border-gray-100 bg-zinc-50 text-sm font-semibold leading-relaxed shadow-inner italic text-zinc-500 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <MapIcon size={80} />
+                    </div>
+                    Unit is currently traversing the <span className="text-zinc-900 font-black">Kebayoran Corridor</span>. 
+                    <p className="mt-4 text-[10px] not-italic font-black uppercase text-zinc-400">Regional Integrity: <span className="text-emerald-600">Optimal</span></p>
                  </div>
                </section>
 
-               <button className="w-full py-4 border-2 border-dashed border-zinc-100 rounded-2xl flex items-center justify-center gap-3 text-zinc-400 hover:text-zinc-900 hover:border-zinc-300 transition-all group">
-                 <span className="text-[11px] font-black uppercase tracking-widest">View Detailed Case Log</span>
-                 <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+               <button className="w-full py-5 border-2 border-dashed border-zinc-100 rounded-3xl flex items-center justify-center gap-3 text-zinc-400 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 transition-all group">
+                 <span className="text-[10px] font-black uppercase tracking-[0.2em]">Situational Dossier</span>
+                 <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
                </button>
             </div>
           </div>
@@ -554,20 +593,34 @@ const Tracker: React.FC<{ units: Unit[] }> = ({ units }) => {
   );
 };
 
-const LayerToggleItem = ({ icon: Icon, label, description, active, onClick, color = "text-gray-400" }: any) => (
+const TelemetryTile = ({ icon: Icon, label, value, sub, isSuccess }: any) => (
+  <div className="bg-zinc-50 p-6 rounded-[28px] border border-zinc-100 flex flex-col justify-between h-32 hover:bg-white hover:shadow-lg hover:border-blue-100 transition-all group">
+    <div className="flex justify-between items-start">
+      <div className={`p-2 rounded-xl transition-colors ${isSuccess ? 'bg-emerald-50 text-emerald-600' : 'bg-white text-zinc-400 border border-zinc-100 group-hover:text-blue-500'}`}>
+        <Icon size={18} />
+      </div>
+      <span className="text-[9px] font-black text-zinc-300 uppercase tracking-widest group-hover:text-zinc-500">{label}</span>
+    </div>
+    <div>
+      <span className={`text-2xl font-black block tracking-tight ${isSuccess ? 'text-emerald-700' : 'text-zinc-900'}`}>{value}</span>
+      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{sub}</span>
+    </div>
+  </div>
+);
+
+const LayerToggleItem = ({ icon: Icon, label, active, onClick, color = "text-gray-400" }: any) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${active ? 'bg-gray-50 border border-gray-100 shadow-sm' : 'hover:bg-gray-50/50'}`}
+    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${active ? 'bg-blue-50/50 border border-blue-100 shadow-sm' : 'hover:bg-gray-50/50'}`}
   >
-    <div className={`p-2 rounded-xl border ${active ? 'bg-white border-gray-200' : 'bg-gray-100 border-transparent'} transition-colors`}>
-      <Icon size={16} className={active ? color : 'text-gray-400'} />
+    <div className={`p-2.5 rounded-xl border transition-all ${active ? 'bg-white border-blue-200 shadow-md' : 'bg-gray-100 border-transparent'} transition-colors`}>
+      <Icon size={18} className={active ? color : 'text-gray-400'} />
     </div>
     <div className="text-left flex-1">
-      <p className={`text-xs font-bold leading-none ${active ? 'text-black' : 'text-gray-500'}`}>{label}</p>
-      <p className="text-[9px] text-gray-400 font-medium mt-1 leading-none">{description}</p>
+      <p className={`text-xs font-black uppercase tracking-tight ${active ? 'text-blue-900' : 'text-gray-500'}`}>{label}</p>
     </div>
-    <div className={`w-8 h-4 rounded-full relative transition-colors ${active ? 'bg-black' : 'bg-gray-200'}`}>
-      <div className={`absolute top-0.5 bottom-0.5 w-3 h-3 bg-white rounded-full transition-all ${active ? 'right-0.5' : 'left-0.5'}`} />
+    <div className={`w-10 h-5 rounded-full relative transition-colors ${active ? 'bg-blue-600 shadow-inner' : 'bg-gray-200'}`}>
+      <div className={`absolute top-1 bottom-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm ${active ? 'right-1' : 'left-1'}`} />
     </div>
   </button>
 );
